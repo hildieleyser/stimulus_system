@@ -1,0 +1,33 @@
+# Core dependencies for stimulus presentation system
+# Python 3.10+
+
+# PsychoPy for stimulus presentation and timing
+psychopy>=2023.2.0
+
+# Audio processing
+soundfile>=0.12.1
+numpy>=1.24.0
+pyloudnorm>=0.1.1
+
+# Text-to-speech for Tier 3 stimuli
+gTTS>=2.4.0
+
+# Lab Streaming Layer for event markers
+pylsl>=1.16.0
+
+# Configuration
+PyYAML>=6.0
+
+# Image processing
+Pillow>=10.0.0
+
+# Optional audio backends (fallbacks if PsychoPy sound fails)
+sounddevice>=0.4.6
+pygame>=2.5.0
+
+# Scientific computing (usually included with PsychoPy but listed for clarity)
+scipy>=1.11.0
+
+# Optional parallel port support (Windows/Linux)
+# pyparallel>=0.2.2  # Uncomment if using parallel port on Windows/Linux
+# inpout32>=0.1.0     # Uncomment for Windows parallel port alternative

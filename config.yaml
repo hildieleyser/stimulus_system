@@ -1,0 +1,85 @@
+# Stimulus Presentation System Configuration
+# Neural Decoding Experiment - Cross-Modal Matrix Design
+
+# Participant and session identifiers
+participant_id: "P01"  # Unique participant ID
+session_id: "S01"      # Session number for this participant
+
+# Experimental mode
+mode: "passive"  # Options: "passive" (viewing only) | "active" (with task)
+
+# Active mode task configuration (only used when mode is "active")
+task: "oddball"  # Options: "oddball" (detect incongruent pairs) | "nback" (n-back on image category) | null
+nback_n: 1       # N for n-back task (1-back, 2-back, etc.)
+
+# Stimulus tiers to present (1=minimal, 2=single object, 3=object in scene, 4=full scene)
+tiers: [1, 2, 3, 4]
+
+# Number of repetitions per cell (4 tiers × 2 congruence conditions = 8 cells)
+repeats_per_cell: 10
+
+# Semantic categories for stimuli
+categories: [dog, car, apple, chair, bird, cup, shoe, tree, fish, clock]
+
+# Timing parameters (milliseconds)
+fixation_duration_ms: 500    # Duration of fixation cross before each trial
+isi_min_ms: 600              # Minimum inter-stimulus interval
+isi_max_ms: 1000             # Maximum inter-stimulus interval (jittered between min and max)
+
+# Stimulus duration per tier (milliseconds)
+stimulus_duration_ms:
+  tier1: 1000  # Pure tone + greyscale object
+  tier2: 1500  # Environmental sound + colour object
+  tier3: 2000  # Spoken word + object in scene
+  tier4: 3000  # Sentence + full naturalistic scene
+
+# Rest period between blocks (milliseconds, 0 to disable)
+rest_between_blocks_ms: 10000
+
+# Display settings
+screen_index: 0          # Monitor index (0 = primary)
+fullscreen: true         # Run in fullscreen mode
+visual_angle_deg: 10     # Visual angle of stimuli in degrees
+viewing_distance_cm: 70  # Distance from participant to screen in cm
+screen_width_cm: 52      # Physical width of screen in cm
+screen_width_px: 1920    # Screen resolution width in pixels
+screen_height_px: 1080   # Screen resolution height in pixels
+background_color: [0, 0, 0]  # RGB values -1 to 1 (0,0,0 = grey in PsychoPy)
+
+# Audio settings
+audio_device_index: 0    # Audio output device index (-1 for default)
+sample_rate: 44100       # Audio sample rate in Hz
+target_loudness_lufs: -23  # Target loudness for normalization in LUFS
+
+# Tone generation (Tier 1)
+generate_tones: true     # Generate pure tones if they don't exist
+tone_freq_min_hz: 440    # Minimum tone frequency
+tone_freq_max_hz: 880    # Maximum tone frequency
+tone_duration_ms: 500    # Duration of pure tones
+
+# Text-to-speech (Tier 3)
+generate_words_tts: true  # Generate spoken words via TTS if they don't exist
+tts_language: "en"        # Language code for gTTS
+
+# Event marking
+lsl_enabled: true        # Enable Lab Streaming Layer markers
+lsl_stream_name: "StimulusMarkers"  # Name of LSL outlet
+
+# Parallel port (optional, for EEG trigger synchronization)
+parallel_port_enabled: false     # Enable parallel port triggers
+parallel_port_address: "0x378"   # Parallel port address (Windows/Linux)
+
+# Response collection (active mode)
+response_key: "space"    # Key for participant responses
+feedback_enabled: true   # Show visual feedback after responses (green=correct, red=incorrect)
+feedback_duration_ms: 200  # Duration of feedback display
+
+# Task-specific parameters
+oddball_proportion: 0.2  # Proportion of oddball trials (incongruent) in oddball task
+
+# Paths
+log_dir: "logs/"         # Directory for log files
+stimuli_dir: "stimuli/"  # Directory for stimulus files
+
+# Randomization seed (constructed from participant_id + session_id for reproducibility)
+# Seed is automatically generated - do not set manually
