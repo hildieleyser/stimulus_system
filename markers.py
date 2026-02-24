@@ -89,7 +89,7 @@ class MarkerSystem:
 
         # CSV columns matching all possible marker fields
         fieldnames = [
-            'timestamp', 'event', 'mode', 'task', 'tier', 'congruence',
+            'timestamp', 'event', 'mode', 'task', 'modality', 'tier', 'congruence',
             'image_category', 'audio_category', 'image_file', 'audio_file',
             'trial_type', 'trial_index', 'response_key', 'rt_ms',
             'correct', 'block_number'
@@ -246,7 +246,7 @@ class MarkerSystem:
         self.send_marker(marker)
 
     def send_block_marker(self, event: str, block_number: int, tier: int,
-                         mode: str, task: Optional[str] = None):
+                         mode: str, task: Optional[str] = None, modality: Optional[str] = None):
         """
         Send block start/end marker.
 
@@ -256,6 +256,7 @@ class MarkerSystem:
             tier: Tier number for this block
             mode: Experimental mode
             task: Task type if in active mode
+            modality: Sensory modality ('visual-only', 'auditory-only', 'bimodal')
 
         Notes:
             Used for segmenting data during analysis.
@@ -264,6 +265,7 @@ class MarkerSystem:
             'event': event,
             'mode': mode,
             'task': task,
+            'modality': modality,
             'tier': tier,
             'block_number': block_number,
             'congruence': None,

@@ -139,6 +139,23 @@ def validate_config(config: Dict[str, Any]) -> Tuple[bool, List[str]]:
             if not isinstance(prop, (int, float)) or not (0 < prop < 1):
                 errors.append("oddball_proportion must be between 0 and 1")
 
+    # Validate modality conditions (NEW)
+    if 'modality_conditions' in config:
+        valid_modalities = ['visual-only', 'auditory-only', 'bimodal']
+        modalities = config['modality_conditions']
+
+        if not isinstance(modalities, list) or not modalities:
+            errors.append("modality_conditions must be a non-empty list")
+        else:
+            for modality in modalities:
+                if modality not in valid_modalities:
+                    errors.append(f"Invalid modality: {modality}. Must be one of {valid_modalities}")
+
+    # Validate menu mode (NEW)
+    if 'menu_mode' in config:
+        if not isinstance(config['menu_mode'], bool):
+            errors.append("menu_mode must be a boolean (true/false)")
+
     is_valid = len(errors) == 0
     return is_valid, errors
 
@@ -201,6 +218,11 @@ def print_config_summary(config: Dict[str, Any]):
             print(f"N-back N: {config.get('nback_n', 1)}")
         elif config.get('task') == 'oddball':
             print(f"Oddball proportion: {config.get('oddball_proportion', 0.2)}")
+
+    print(f"\nModality:")
+    modalities = config.get('modality_conditions', ['bimodal'])
+    print(f"  Conditions: {', '.join(modalities)}")
+    print(f"  Menu mode: {config.get('menu_mode', False)}")
 
     print(f"\nTiers: {config['tiers']}")
     print(f"Categories: {config['categories']}")

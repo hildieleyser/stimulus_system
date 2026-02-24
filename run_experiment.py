@@ -116,6 +116,40 @@ def main():
         if args.dry_run:
             print_config_summary(config)
 
+        # Check if menu mode is enabled (skip in dry-run)
+        if config.get('menu_mode', False) and not args.dry_run:
+            print("\nMenu mode enabled - launching configuration interface...")
+
+            # Import menu and display (only if needed)
+            from display import DisplayManager
+            from menu import MenuSystem
+
+            # Initialize display for menu
+            display = DisplayManager(config, dry_run=False)
+
+            try:
+                # Create and run menu
+                menu = MenuSystem(display, config)
+                menu_config = menu.run_menu_flow()
+
+                if menu_config is None:
+                    print("\nConfiguration cancelled by user")
+                    display.close()
+                    sys.exit(0)
+
+                # Update config with menu selections
+                config.update(menu_config)
+                print("\nConfiguration complete!")
+                print_config_summary(config)
+
+                # Close menu display (ExperimentSession will create its own)
+                display.close()
+
+            except Exception as e:
+                print(f"\nMenu error: {e}")
+                display.close()
+                raise
+
         # Initialize session
         print("\nInitializing experiment session...")
         session = ExperimentSession(config, dry_run=args.dry_run)

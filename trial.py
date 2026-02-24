@@ -82,9 +82,16 @@ class TrialRunner:
             core.wait(0.001)  # Small wait to prevent CPU spinning
 
         # 2. STIMULUS PRESENTATION
-        # Draw image
-        if trial_data.get('image_file'):
-            self.display.show_image(trial_data['image_file'])
+        # Get modality (default to bimodal for backward compatibility)
+        modality = trial_data.get('modality', 'bimodal')
+
+        # Draw visual stimulus based on modality
+        if modality in ['visual-only', 'bimodal']:
+            if trial_data.get('image_file'):
+                self.display.show_image(trial_data['image_file'])
+        elif modality == 'auditory-only':
+            # For auditory-only, show continuous fixation
+            self.display.show_fixation()
 
         # Flip to show stimulus and get precise onset time
         results['stimulus_onset'] = self.display.flip()
@@ -92,9 +99,10 @@ class TrialRunner:
         # Send onset marker immediately after flip
         self.markers.send_onset_marker(trial_data, trial_index, mode='passive')
 
-        # Play audio immediately after onset marker
-        if trial_data.get('audio_file'):
-            self.audio.play_audio_file(trial_data['audio_file'])
+        # Play audio based on modality (after onset marker)
+        if modality in ['auditory-only', 'bimodal']:
+            if trial_data.get('audio_file'):
+                self.audio.play_audio_file(trial_data['audio_file'])
 
         # Reset clock for stimulus duration
         self.clock.reset()
@@ -187,17 +195,26 @@ class TrialRunner:
             core.wait(0.001)
 
         # 2. STIMULUS PRESENTATION
-        if trial_data.get('image_file'):
-            self.display.show_image(trial_data['image_file'])
+        # Get modality (default to bimodal for backward compatibility)
+        modality = trial_data.get('modality', 'bimodal')
+
+        # Draw visual stimulus based on modality
+        if modality in ['visual-only', 'bimodal']:
+            if trial_data.get('image_file'):
+                self.display.show_image(trial_data['image_file'])
+        elif modality == 'auditory-only':
+            # For auditory-only, show continuous fixation
+            self.display.show_fixation()
 
         results['stimulus_onset'] = self.display.flip()
 
         # Send onset marker
         self.markers.send_onset_marker(trial_data, trial_index, mode='active', task=task)
 
-        # Play audio
-        if trial_data.get('audio_file'):
-            self.audio.play_audio_file(trial_data['audio_file'])
+        # Play audio based on modality
+        if modality in ['auditory-only', 'bimodal']:
+            if trial_data.get('audio_file'):
+                self.audio.play_audio_file(trial_data['audio_file'])
 
         # Reset clock for stimulus duration and response collection
         self.clock.reset()
@@ -319,6 +336,63 @@ class TrialRunner:
             Called at beginning of session.
         """
         self.display.show_instructions(mode, task)
+        self.display.flip()
+
+        # Wait for space key
+        continue_exp = self.display.wait_for_keypress('space')
+
+        return continue_exp
+
+    def show_modality_instructions(self, modality: str, mode: str, task: Optional[str] = None) -> bool:
+        """
+        Display modality-specific instructions and wait for participant to continue.
+
+        Args:
+            modality: Sensory modality ('visual-only', 'auditory-only', 'bimodal')
+            mode: Experimental mode ('passive' or 'active')
+            task: Task type if active mode
+
+        Returns:
+            False if quit requested, True otherwise
+
+        Notes:
+            Called at the start of each modality block.
+        """
+        # Build modality-specific instruction text
+        if modality == 'visual-only':
+            text = "VISUAL ONLY TRIALS\n\n"
+            text += "In this section, you will see images only.\n"
+            if mode == 'passive':
+                text += "Please maintain fixation on the cross and observe the images.\n"
+            elif mode == 'active' and task == 'oddball':
+                text += "Press SPACE when you detect an oddball stimulus.\n"
+            elif mode == 'active' and task == 'nback':
+                text += f"Press SPACE when the current image matches the image from {self.config.get('nback_n', 1)} trials ago.\n"
+
+        elif modality == 'auditory-only':
+            text = "AUDITORY ONLY TRIALS\n\n"
+            text += "In this section, you will hear sounds only.\n"
+            if mode == 'passive':
+                text += "Please maintain fixation on the cross and listen to the sounds.\n"
+            elif mode == 'active' and task == 'oddball':
+                text += "Press SPACE when you detect an oddball stimulus.\n"
+            elif mode == 'active' and task == 'nback':
+                text += f"Press SPACE when the current sound matches the sound from {self.config.get('nback_n', 1)} trials ago.\n"
+
+        elif modality == 'bimodal':
+            text = "CROSS-MODAL TRIALS\n\n"
+            text += "In this section, you will experience\n"
+            text += "images and sounds together.\n"
+            if mode == 'passive':
+                text += "Please maintain fixation and observe both modalities.\n"
+            elif mode == 'active' and task == 'oddball':
+                text += "\nPress SPACE when the image and sound do not match.\n"
+            elif mode == 'active' and task == 'nback':
+                text += f"\nPress SPACE when the current image matches the image from {self.config.get('nback_n', 1)} trials ago.\n"
+
+        text += "\n\nPress SPACE to begin."
+
+        self.display.show_text(text, height=30)
         self.display.flip()
 
         # Wait for space key

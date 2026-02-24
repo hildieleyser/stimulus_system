@@ -138,17 +138,28 @@ class StimulusManifest:
                         print(f"Warning: Sentence directory not found: {sentence_dir}")
                         self.manifest[tier]['audio'][category] = []
 
-    def validate(self) -> Tuple[bool, List[str]]:
+    def validate(self, modalities: List[str] = None) -> Tuple[bool, List[str]]:
         """
         Validate manifest to ensure required stimuli are available.
+
+        Args:
+            modalities: List of modalities to validate for.
+                       Defaults to ['bimodal'] (requires both image and audio).
+                       For unimodal conditions, only validates the relevant modality.
 
         Returns:
             Tuple of (is_valid, list_of_warnings)
 
         Notes:
+            - For 'bimodal': requires both images and audio
+            - For 'visual-only': requires only images
+            - For 'auditory-only': requires only audio
             Returns True if at least some stimuli are available for each tier.
             Warnings list specific missing files or categories.
         """
+        if modalities is None:
+            modalities = ['bimodal']
+
         warnings = []
         valid_tiers = []
 
@@ -160,13 +171,31 @@ class StimulusManifest:
                 len(files) > 0 for files in self.manifest[tier]['audio'].values()
             )
 
-            if tier_has_images and tier_has_audio:
+            # Check validity based on required modalities
+            tier_valid = False
+
+            if 'bimodal' in modalities and tier_has_images and tier_has_audio:
+                tier_valid = True
+            if 'visual-only' in modalities and tier_has_images:
+                tier_valid = True
+            if 'auditory-only' in modalities and tier_has_audio:
+                tier_valid = True
+
+            if tier_valid:
                 valid_tiers.append(tier)
             else:
-                warnings.append(f"Tier {tier} missing stimuli - will be skipped")
+                missing = []
+                if 'visual-only' in modalities or 'bimodal' in modalities:
+                    if not tier_has_images:
+                        missing.append('images')
+                if 'auditory-only' in modalities or 'bimodal' in modalities:
+                    if not tier_has_audio:
+                        missing.append('audio')
+                if missing:
+                    warnings.append(f"Tier {tier} missing {', '.join(missing)} for requested modalities")
 
         if not valid_tiers:
-            warnings.append("CRITICAL: No valid tiers found with complete stimuli")
+            warnings.append("CRITICAL: No valid tiers found with required stimuli for selected modalities")
             return False, warnings
 
         return True, warnings
@@ -176,36 +205,50 @@ class StimulusManifest:
         Assign specific stimulus files to each trial.
 
         Args:
-            trials: List of trial dictionaries with tier/category info
+            trials: List of trial dictionaries with tier/category/modality info
             rng: Random number generator for reproducible assignment
 
         Returns:
             Updated trials with image_file and audio_file fields
 
         Notes:
-            Randomly samples from available files for each category/tier.
-            Samples with replacement if necessary (if more trials than files).
+            - Randomly samples from available files for each category/tier
+            - Samples with replacement if necessary (if more trials than files)
+            - For 'visual-only' trials: only assigns image_file, audio_file = None
+            - For 'auditory-only' trials: only assigns audio_file, image_file = None
+            - For 'bimodal' trials: assigns both image_file and audio_file
         """
         for trial in trials:
             tier = trial['tier']
-            image_category = trial['image_category']
-            audio_category = trial['audio_category']
+            modality = trial.get('modality', 'bimodal')  # Default to bimodal for backward compatibility
+            image_category = trial.get('image_category')
+            audio_category = trial.get('audio_category')
 
-            # Assign image file
-            available_images = self.manifest[tier]['images'].get(image_category, [])
-            if available_images:
-                trial['image_file'] = rng.choice(available_images)
+            # Assign image file (only for visual-only or bimodal)
+            if modality in ['visual-only', 'bimodal'] and image_category is not None:
+                available_images = self.manifest[tier]['images'].get(image_category, [])
+                if available_images:
+                    trial['image_file'] = rng.choice(available_images)
+                else:
+                    trial['image_file'] = None
+                    if modality == 'visual-only' or modality == 'bimodal':
+                        print(f"Warning: No image available for tier {tier}, category {image_category}")
             else:
+                # Auditory-only or image_category is None
                 trial['image_file'] = None
-                print(f"Warning: No image available for tier {tier}, category {image_category}")
 
-            # Assign audio file
-            available_audio = self.manifest[tier]['audio'].get(audio_category, [])
-            if available_audio:
-                trial['audio_file'] = rng.choice(available_audio)
+            # Assign audio file (only for auditory-only or bimodal)
+            if modality in ['auditory-only', 'bimodal'] and audio_category is not None:
+                available_audio = self.manifest[tier]['audio'].get(audio_category, [])
+                if available_audio:
+                    trial['audio_file'] = rng.choice(available_audio)
+                else:
+                    trial['audio_file'] = None
+                    if modality == 'auditory-only' or modality == 'bimodal':
+                        print(f"Warning: No audio available for tier {tier}, category {audio_category}")
             else:
+                # Visual-only or audio_category is None
                 trial['audio_file'] = None
-                print(f"Warning: No audio available for tier {tier}, category {audio_category}")
 
         return trials
 

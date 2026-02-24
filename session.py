@@ -84,8 +84,9 @@ class ExperimentSession:
             config['tiers']
         )
 
-        # Validate manifest
-        is_valid, warnings = self.manifest.validate()
+        # Validate manifest (pass modalities if specified)
+        modalities = config.get('modality_conditions', ['bimodal'])
+        is_valid, warnings = self.manifest.validate(modalities=modalities)
         if warnings:
             print("\nManifest warnings:")
             for warning in warnings:
@@ -134,7 +135,10 @@ class ExperimentSession:
                     print("Experiment cancelled by user")
                     return
 
-            # Generate block structure
+            # Get modality conditions (default to bimodal for backward compatibility)
+            modalities = self.config.get('modality_conditions', ['bimodal'])
+
+            # Generate block structure (organized by modality → tier)
             blocks = generate_block_structure(
                 categories=self.config['categories'],
                 tiers=self.config['tiers'],
@@ -142,47 +146,69 @@ class ExperimentSession:
                 rng=self.rng,
                 mode=mode,
                 task=task,
-                oddball_proportion=self.config.get('oddball_proportion', 0.2)
+                oddball_proportion=self.config.get('oddball_proportion', 0.2),
+                modalities=modalities
             )
 
-            # Run blocks
-            total_blocks = len(blocks)
-            for block_idx, (tier, trials) in enumerate(blocks.items(), start=1):
-                print(f"\n--- Block {block_idx}/{total_blocks}: Tier {tier} ---")
-                print(f"Trials in block: {len(trials)}")
+            # Calculate total blocks for progress tracking
+            total_blocks = sum(len(tier_blocks) for tier_blocks in blocks.values())
+            block_idx = 0
 
-                # For n-back task, assign targets based on sequence
-                if mode == 'active' and task == 'nback':
-                    n = self.config.get('nback_n', 1)
-                    trials = assign_nback_targets(trials, n)
+            # Run blocks organized by modality → tier
+            for modality in modalities:
+                print(f"\n{'='*60}")
+                print(f"MODALITY: {modality.upper()}")
+                print(f"{'='*60}")
 
-                # Assign stimulus files to trials
-                trials = self.manifest.assign_stimuli_to_trials(trials, self.rng)
+                # Show modality-specific instructions
+                if not self.dry_run:
+                    continue_exp = self.trial_runner.show_modality_instructions(modality, mode, task)
+                    if not continue_exp:
+                        print("Experiment cancelled by user")
+                        return
 
-                # Send block start marker
-                self.markers.send_block_marker('block_start', block_idx, tier, mode, task)
+                # Run all tier blocks for this modality
+                for tier, trials in blocks[modality].items():
+                    block_idx += 1
+                    print(f"\n--- Block {block_idx}/{total_blocks}: {modality} - Tier {tier} ---")
+                    print(f"Trials in block: {len(trials)}")
 
-                # Run all trials in block
-                quit_requested = self._run_block(trials, mode, task)
+                    # For n-back task, assign targets based on sequence
+                    if mode == 'active' and task == 'nback':
+                        n = self.config.get('nback_n', 1)
+                        trials = assign_nback_targets(trials, n)
 
-                # Send block end marker
-                self.markers.send_block_marker('block_end', block_idx, tier, mode, task)
+                    # Assign stimulus files to trials
+                    trials = self.manifest.assign_stimuli_to_trials(trials, self.rng)
 
-                # Flush markers
-                self.markers.flush()
+                    # Send block start marker (include modality info)
+                    self.markers.send_block_marker('block_start', block_idx, tier, mode, task, modality=modality)
 
+                    # Run all trials in block
+                    quit_requested = self._run_block(trials, mode, task)
+
+                    # Send block end marker
+                    self.markers.send_block_marker('block_end', block_idx, tier, mode, task, modality=modality)
+
+                    # Flush markers
+                    self.markers.flush()
+
+                    if quit_requested:
+                        print("\nExperiment terminated by user")
+                        break
+
+                    # Rest period between blocks (except after last block)
+                    if block_idx < total_blocks:
+                        rest_duration_ms = self.config.get('rest_between_blocks_ms', 0)
+                        if rest_duration_ms > 0 and not self.dry_run:
+                            continue_exp = self.trial_runner.run_rest_period(block_idx, total_blocks)
+                            if not continue_exp:
+                                print("\nExperiment terminated by user")
+                                break
+
+                # Break out of modality loop if quit requested
                 if quit_requested:
-                    print("\nExperiment terminated by user")
                     break
-
-                # Rest period between blocks (except after last block)
-                if block_idx < total_blocks:
-                    rest_duration_ms = self.config.get('rest_between_blocks_ms', 0)
-                    if rest_duration_ms > 0 and not self.dry_run:
-                        continue_exp = self.trial_runner.run_rest_period(block_idx, total_blocks)
-                        if not continue_exp:
-                            print("\nExperiment terminated by user")
-                            break
 
             # Show end message
             if not self.dry_run and not quit_requested:
@@ -218,9 +244,12 @@ class ExperimentSession:
         """
         for trial_idx, trial_data in enumerate(trials):
             if self.dry_run:
-                # In dry run, just validate trial data
-                if not trial_data.get('image_file') or not trial_data.get('audio_file'):
-                    print(f"  Warning: Trial {trial_idx} missing stimulus files")
+                # In dry run, validate trial data based on modality
+                modality = trial_data.get('modality', 'bimodal')
+                if modality in ['visual-only', 'bimodal'] and not trial_data.get('image_file'):
+                    print(f"  Warning: Trial {trial_idx} missing image file (modality: {modality})")
+                if modality in ['auditory-only', 'bimodal'] and not trial_data.get('audio_file'):
+                    print(f"  Warning: Trial {trial_idx} missing audio file (modality: {modality})")
                 continue
 
             # Run trial based on mode
@@ -294,6 +323,7 @@ class ExperimentSession:
         # Calculate trial counts
         mode = self.config['mode']
         task = self.config.get('task')
+        modalities = self.config.get('modality_conditions', ['bimodal'])
 
         blocks = generate_block_structure(
             categories=self.config['categories'],
@@ -302,17 +332,30 @@ class ExperimentSession:
             rng=self.rng,
             mode=mode,
             task=task,
-            oddball_proportion=self.config.get('oddball_proportion', 0.2)
+            oddball_proportion=self.config.get('oddball_proportion', 0.2),
+            modalities=modalities
         )
 
-        total_trials = sum(len(trials) for trials in blocks.values())
+        # Calculate total trials across all modalities
+        total_trials = sum(
+            sum(len(trials) for trials in tier_blocks.values())
+            for tier_blocks in blocks.values()
+        )
+
+        # Calculate total blocks
+        total_blocks = sum(len(tier_blocks) for tier_blocks in blocks.values())
 
         print(f"\nExperiment structure:")
-        print(f"  Total blocks: {len(blocks)}")
+        print(f"  Modalities: {', '.join(modalities)}")
+        print(f"  Total blocks: {total_blocks}")
         print(f"  Total trials: {total_trials}")
 
-        for block_idx, (tier, trials) in enumerate(blocks.items(), start=1):
-            print(f"  Block {block_idx} (Tier {tier}): {len(trials)} trials")
+        block_idx = 0
+        for modality in modalities:
+            print(f"\n  {modality.upper()}:")
+            for tier, trials in blocks[modality].items():
+                block_idx += 1
+                print(f"    Block {block_idx} (Tier {tier}): {len(trials)} trials")
 
         # Estimate duration
         avg_trial_dur = 3.0  # Rough estimate in seconds

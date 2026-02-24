@@ -12,6 +12,14 @@ mode: "passive"  # Options: "passive" (viewing only) | "active" (with task)
 task: "oddball"  # Options: "oddball" (detect incongruent pairs) | "nback" (n-back on image category) | null
 nback_n: 1       # N for n-back task (1-back, 2-back, etc.)
 
+# Modality conditions (NEW: for graded multisensory design)
+# Options: 'visual-only' (images only), 'auditory-only' (sounds only), 'bimodal' (cross-modal)
+# Multiple modalities can be included - they will be presented in separate blocks
+modality_conditions: ['bimodal']  # Default to bimodal for backward compatibility
+
+# Menu mode (NEW: enable interactive configuration)
+menu_mode: false  # If true, show landing page with modality selection menu
+
 # Stimulus tiers to present (1=minimal, 2=single object, 3=object in scene, 4=full scene)
 tiers: [1, 2, 3, 4]
 

@@ -16,47 +16,82 @@ class MatrixCell:
     Represents a single cell in the cross-modal matrix.
 
     Attributes:
+        modality: Sensory modality ('visual-only', 'auditory-only', 'bimodal')
         tier: Sensory tier (1-4)
-        congruence: 'congruent' or 'incongruent'
-        image_category: Semantic category for image
-        audio_category: Semantic category for audio
+        congruence: 'congruent', 'incongruent', or None (for unimodal)
+        image_category: Semantic category for image (None for auditory-only)
+        audio_category: Semantic category for audio (None for visual-only)
     """
+    modality: str
     tier: int
     congruence: str
     image_category: str
     audio_category: str
 
 
-def create_matrix_cells(categories: List[str], tiers: List[int]) -> List[Dict[str, any]]:
+def create_matrix_cells(categories: List[str], tiers: List[int], modalities: List[str] = None) -> List[Dict[str, any]]:
     """
     Create all cells in the cross-modal matrix.
 
     Args:
         categories: List of semantic categories
         tiers: List of tier numbers to include
+        modalities: List of modalities ('visual-only', 'auditory-only', 'bimodal').
+                   Defaults to ['bimodal'] for backward compatibility.
 
     Returns:
         List of dict representations of matrix cells
 
     Notes:
-        Each tier has 2 congruence conditions (congruent/incongruent).
-        For congruent: image_category == audio_category
-        For incongruent: image_category != audio_category
+        - For 'visual-only': only image_category assigned, audio_category = None, congruence = None
+        - For 'auditory-only': only audio_category assigned, image_category = None, congruence = None
+        - For 'bimodal': both categories assigned with congruence conditions
+        Each tier × modality combination creates cells for all categories.
     """
+    # Default to bimodal for backward compatibility
+    if modalities is None:
+        modalities = ['bimodal']
+
     cells = []
 
-    for tier in tiers:
-        for congruence in ['congruent', 'incongruent']:
-            # For each category, create a cell
-            # This allows balanced representation of all categories
-            for category in categories:
-                cell = {
-                    'tier': tier,
-                    'congruence': congruence,
-                    'image_category': category,
-                    'audio_category': category if congruence == 'congruent' else None  # Will be assigned later
-                }
-                cells.append(cell)
+    for modality in modalities:
+        for tier in tiers:
+            if modality == 'visual-only':
+                # Visual-only: image only, no audio, no congruence
+                for category in categories:
+                    cell = {
+                        'modality': modality,
+                        'tier': tier,
+                        'congruence': None,
+                        'image_category': category,
+                        'audio_category': None
+                    }
+                    cells.append(cell)
+
+            elif modality == 'auditory-only':
+                # Auditory-only: audio only, no image, no congruence
+                for category in categories:
+                    cell = {
+                        'modality': modality,
+                        'tier': tier,
+                        'congruence': None,
+                        'image_category': None,
+                        'audio_category': category
+                    }
+                    cells.append(cell)
+
+            elif modality == 'bimodal':
+                # Bimodal: both modalities with congruence manipulation
+                for congruence in ['congruent', 'incongruent']:
+                    for category in categories:
+                        cell = {
+                            'modality': modality,
+                            'tier': tier,
+                            'congruence': congruence,
+                            'image_category': category,
+                            'audio_category': category if congruence == 'congruent' else None  # Will be assigned later
+                        }
+                        cells.append(cell)
 
     return cells
 
@@ -76,9 +111,10 @@ def assign_incongruent_pairs(cells: List[Dict[str, any]], categories: List[str],
     Notes:
         For incongruent trials, audio category is randomly selected from
         categories other than the image category.
+        Only applies to bimodal trials (unimodal trials have None for congruence).
     """
     for cell in cells:
-        if cell['congruence'] == 'incongruent':
+        if cell.get('congruence') == 'incongruent':
             # Select a different category for audio
             available_categories = [c for c in categories if c != cell['image_category']]
             cell['audio_category'] = rng.choice(available_categories)
@@ -161,9 +197,10 @@ def generate_trial_sequence(cells: List[Dict[str, any]], repeats_per_cell: int,
 def generate_block_structure(categories: List[str], tiers: List[int],
                             repeats_per_cell: int, rng: random.Random,
                             mode: str = 'passive', task: str = None,
-                            oddball_proportion: float = 0.2) -> Dict[int, List[Dict[str, any]]]:
+                            oddball_proportion: float = 0.2,
+                            modalities: List[str] = None) -> Dict[str, Dict[int, List[Dict[str, any]]]]:
     """
-    Generate trial structure organized by blocks (one block per tier).
+    Generate trial structure organized by modality and blocks (one block per tier within each modality).
 
     Args:
         categories: List of semantic categories
@@ -173,39 +210,78 @@ def generate_block_structure(categories: List[str], tiers: List[int],
         mode: Experimental mode
         task: Task type (if active mode)
         oddball_proportion: Proportion of oddball trials
+        modalities: List of modalities ('visual-only', 'auditory-only', 'bimodal').
+                   Defaults to ['bimodal'] for backward compatibility.
 
     Returns:
-        Dictionary mapping tier number to list of trials for that block
+        Dictionary mapping modality → tier number → list of trials for that block
+        Format: {modality: {tier: [trials]}}
 
     Notes:
-        Each tier gets its own block with all congruence conditions represented.
+        Each modality contains blocks organized by tier.
+        For 'visual-only' and 'auditory-only', congruence is not applicable.
+        For 'bimodal', both congruence conditions are represented.
         Trials within blocks are randomized.
     """
+    # Default to bimodal for backward compatibility
+    if modalities is None:
+        modalities = ['bimodal']
+
     blocks = {}
 
-    for tier in tiers:
-        # Create cells for this tier only
-        tier_cells = []
+    for modality in modalities:
+        blocks[modality] = {}
 
-        for congruence in ['congruent', 'incongruent']:
-            for category in categories:
-                cell = {
-                    'tier': tier,
-                    'congruence': congruence,
-                    'image_category': category,
-                    'audio_category': category if congruence == 'congruent' else None
-                }
-                tier_cells.append(cell)
+        for tier in tiers:
+            # Create cells for this tier and modality
+            tier_cells = []
 
-        # Assign incongruent pairs
-        tier_cells = assign_incongruent_pairs(tier_cells, categories, rng)
+            if modality == 'visual-only':
+                # Visual-only: image only, no congruence
+                for category in categories:
+                    cell = {
+                        'modality': modality,
+                        'tier': tier,
+                        'congruence': None,
+                        'image_category': category,
+                        'audio_category': None
+                    }
+                    tier_cells.append(cell)
 
-        # Generate trial sequence for this block
-        block_trials = generate_trial_sequence(
-            tier_cells, repeats_per_cell, rng, mode, task, oddball_proportion
-        )
+            elif modality == 'auditory-only':
+                # Auditory-only: audio only, no congruence
+                for category in categories:
+                    cell = {
+                        'modality': modality,
+                        'tier': tier,
+                        'congruence': None,
+                        'image_category': None,
+                        'audio_category': category
+                    }
+                    tier_cells.append(cell)
 
-        blocks[tier] = block_trials
+            elif modality == 'bimodal':
+                # Bimodal: both modalities with congruence
+                for congruence in ['congruent', 'incongruent']:
+                    for category in categories:
+                        cell = {
+                            'modality': modality,
+                            'tier': tier,
+                            'congruence': congruence,
+                            'image_category': category,
+                            'audio_category': category if congruence == 'congruent' else None
+                        }
+                        tier_cells.append(cell)
+
+                # Assign incongruent pairs for bimodal only
+                tier_cells = assign_incongruent_pairs(tier_cells, categories, rng)
+
+            # Generate trial sequence for this block
+            block_trials = generate_trial_sequence(
+                tier_cells, repeats_per_cell, rng, mode, task, oddball_proportion
+            )
+
+            blocks[modality][tier] = block_trials
 
     return blocks
 
